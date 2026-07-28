@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — Aether Render Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<section id="loginScreen" class="login-screen">
+  <div class="login-glow login-glow-1"></div>
+  <div class="login-glow login-glow-2"></div>
+  <div class="login-card">
+    <div class="login-logo">
+      <span class="login-logo-mark">⬡</span>
+      <div>
+        <div class="login-logo-title">AETHER</div>
+        <div class="login-logo-sub">RENDER LAB — ADMIN</div>
+      </div>
+    </div>
+    <h1 class="login-heading" id="authHeading">Masuk ke Dashboard</h1>
+    <p class="login-desc" id="authDesc">Panel admin untuk mengelola konten portofolio 3D.</p>
+
+    <form id="loginForm" class="login-form">
+      <label class="field">
+        <span class="field-label">Email</span>
+        <input type="email" id="loginEmail" placeholder="admin@aetherrenderlab.com" autocomplete="off" required>
+      </label>
+      <label class="field">
+        <span class="field-label">Password</span>
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="off" required>
+      </label>
+      <div class="login-error" id="loginError"></div>
+      <button type="submit" class="btn-primary btn-block">Masuk →</button>
+    </form>
+
+    <form id="registerForm" class="login-form is-hidden">
+      <label class="field">
+        <span class="field-label">Nama Lengkap</span>
+        <input type="text" id="regName" placeholder="Nama kamu" required>
+      </label>
+      <label class="field">
+        <span class="field-label">Email</span>
+        <input type="email" id="regEmail" placeholder="kamu@email.com" required>
+      </label>
+      <label class="field">
+        <span class="field-label">Password</span>
+        <input type="password" id="regPassword" placeholder="Minimal 6 karakter" required>
+      </label>
+      <label class="field">
+        <span class="field-label">Konfirmasi Password</span>
+        <input type="password" id="regPassword2" placeholder="Ulangi password" required>
+      </label>
+      <div class="login-error" id="registerError"></div>
+      <button type="submit" class="btn-primary btn-block">Buat Akun →</button>
+    </form>
+
+    <div class="login-switch">
+      <span id="toRegisterText">Belum punya akun? <button type="button" id="toRegisterBtn">Buat Akun Baru</button></span>
+      <span id="toLoginText" class="is-hidden">Sudah punya akun? <button type="button" id="toLoginBtn">Masuk di sini</button></span>
+    </div>
+
+    <div class="login-hint">
+      <span class="login-hint-tag">INFO</span>
+      Belum punya akun? Klik <strong>"Buat Akun Baru"</strong> di atas. Akun baru otomatis berperan <strong>user</strong> — untuk jadi admin, minta admin yang sudah ada untuk menaikkan role kamu di menu Manajemen Akun.
+    </div>
+  </div>
+</section>
+
+<!-- ============ ADMIN APP SHELL ============ -->
+<div id="app" class="app is-hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="sidebar-mark">⬡</span>
+      <div>
+        <div class="sidebar-brand-title">AETHER</div>
+        <div class="sidebar-brand-sub">ADMIN PANEL</div>
+      </div>
+    </div>
+
+    <a href="../index.html" class="sidebar-back-link">← Kembali ke Situs</a>
+
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Overview</div>
+      <button class="nav-item is-active" data-view="dashboard"><span class="nav-ico">▣</span>Dashboard</button>
+
+      <div class="nav-group-label">Konten</div>
+      <button class="nav-item" data-view="portfolio"><span class="nav-ico">◧</span>Portofolio</button>
+      <button class="nav-item" data-view="categories"><span class="nav-ico">◱</span>Kategori</button>
+      <button class="nav-item" data-view="services"><span class="nav-ico">◈</span>Layanan</button>
+      <button class="nav-item" data-view="skills"><span class="nav-ico">◫</span>Skills</button>
+      <button class="nav-item" data-view="testimonials"><span class="nav-ico">❝</span>Testimoni</button>
+      <button class="nav-item" data-view="news"><span class="nav-ico">📰</span>Berita</button>
+
+      <div class="nav-group-label">Interaksi</div>
+      <button class="nav-item" data-view="inbox">
+        <span class="nav-ico">✉</span>Pesan Masuk
+        <span class="nav-badge" id="inboxBadge">0</span>
+      </button>
+      <button class="nav-item" data-view="activity"><span class="nav-ico">◷</span>Log Aktivitas</button>
+
+      <div class="nav-group-label">Sistem</div>
+      <button class="nav-item" data-view="accounts"><span class="nav-ico">◍</span>Manajemen Akun</button>
+      <button class="nav-item" data-view="settings"><span class="nav-ico">⚙</span>Pengaturan Situs</button>
+      <button class="nav-item" data-view="profile"><span class="nav-ico">◍</span>Profil Admin</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">⏻ Keluar</button>
+    </div>
+  </aside>
+
+  <div class="app-overlay" id="appOverlay"></div>
+
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger-btn" id="sidebarToggle" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="topbar-title" id="topbarTitle">Dashboard</div>
+      <div class="topbar-right">
+        <div class="topbar-search">
+          <span>⌕</span>
+          <input type="text" placeholder="Cari sesuatu... (demo)">
+        </div>
+        <a href="../index.html" class="topbar-icon-btn" id="viewSiteBtn" title="Lihat Situs" style="display:flex;align-items:center;justify-content:center;text-decoration:none;">🌐</a>
+        <button class="topbar-icon-btn" id="bellBtn">
+          🔔<span class="topbar-badge" id="bellBadge">0</span>
+        </button>
+        <div class="topbar-profile" id="topbarProfile">
+          <img id="topbarAvatar" alt="">
+          <div>
+            <div class="topbar-profile-name" id="topbarName">Alland Freda</div>
+            <div class="topbar-profile-role">Administrator</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="view-scroll">
+
+      <!-- ===== DASHBOARD ===== -->
+      <section class="view is-active" data-view="dashboard">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-card-top">
+              <span class="stat-ico ico-orange">◧</span>
+              <span class="stat-trend trend-up">▲ 12%</span>
+            </div>
+            <div class="stat-value" id="statProjects">0</div>
+            <div class="stat-label">Total Proyek</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top">
+              <span class="stat-ico ico-blue">✉</span>
+              <span class="stat-trend trend-up">▲ 3 baru</span>
+            </div>
+            <div class="stat-value" id="statMessages">0</div>
+            <div class="stat-label">Pesan Belum Dibaca</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top">
+              <span class="stat-ico ico-orange">❝</span>
+              <span class="stat-trend trend-up">▲ 1 baru</span>
+            </div>
+            <div class="stat-value" id="statTestimonials">0</div>
+            <div class="stat-label">Testimoni Klien</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top">
+              <span class="stat-ico ico-blue">★</span>
+              <span class="stat-trend trend-flat">— stabil</span>
+            </div>
+            <div class="stat-value" id="statRating">0.0</div>
+            <div class="stat-label">Rating Rata-rata</div>
+          </div>
+        </div>
+
+        <div class="dash-grid">
+          <div class="panel panel-chart">
+            <div class="panel-head">
+              <h3>Kunjungan Situs (7 hari terakhir)</h3>
+              <span class="panel-tag">// demo data</span>
+            </div>
+            <div class="bar-chart" id="visitsChart"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Pesan Terbaru</h3>
+              <button class="panel-link" data-goto="inbox">Lihat semua →</button>
+            </div>
+            <div class="mini-list" id="dashRecentMessages"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Aktivitas Terbaru</h3>
+            <button class="panel-link" data-goto="activity">Lihat semua →</button>
+          </div>
+          <div class="mini-list" id="dashRecentActivity"></div>
+        </div>
+      </section>
+
+      <!-- ===== PORTFOLIO ===== -->
+      <section class="view" data-view="portfolio">
+        <div class="view-toolbar">
+          <div class="toolbar-filters">
+            <select id="portFilterCategory"><option value="All">Semua Kategori</option></select>
+            <select id="portFilterStatus">
+              <option value="All">Semua Status</option>
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+            </select>
+          </div>
+          <button class="btn-primary" id="addProjectBtn">+ Tambah Proyek</button>
+        </div>
+        <div class="panel">
+          <table class="data-table">
+            <thead>
+              <tr><th></th><th>Judul</th><th>Kategori</th><th>Tools</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="portfolioTableBody"></tbody>
+          </table>
+          <div class="empty-state" id="portfolioEmpty">Belum ada proyek. Klik “+ Tambah Proyek”.</div>
+        </div>
+      </section>
+
+      <!-- ===== CATEGORIES ===== -->
+      <section class="view" data-view="categories">
+        <div class="view-toolbar">
+          <div></div>
+          <button class="btn-primary" id="addCategoryBtn">+ Tambah Kategori</button>
+        </div>
+        <div class="panel">
+          <div class="chip-list" id="categoryList"></div>
+        </div>
+      </section>
+
+      <!-- ===== SERVICES ===== -->
+      <section class="view" data-view="services">
+        <div class="view-toolbar">
+          <div></div>
+          <button class="btn-primary" id="addServiceBtn">+ Tambah Layanan</button>
+        </div>
+        <div class="card-grid" id="servicesGrid"></div>
+      </section>
+
+      <!-- ===== SKILLS ===== -->
+      <section class="view" data-view="skills">
+        <div class="view-toolbar">
+          <div></div>
+          <button class="btn-primary" id="addSkillBtn">+ Tambah Skill</button>
+        </div>
+        <div class="panel">
+          <div class="skill-list" id="skillList"></div>
+        </div>
+      </section>
+
+      <!-- ===== TESTIMONIALS ===== -->
+      <section class="view" data-view="testimonials">
+        <div class="view-toolbar">
+          <div></div>
+          <button class="btn-primary" id="addTestimonialBtn">+ Tambah Testimoni</button>
+        </div>
+        <div class="card-grid" id="testimonialsGrid"></div>
+      </section>
+
+      <!-- ===== NEWS ===== -->
+      <section class="view" data-view="news">
+        <div class="view-toolbar">
+          <div class="toolbar-filters">
+            <select id="newsFilterCategory">
+              <option value="All">Semua Kategori</option>
+              <option value="Update Proyek">Update Proyek</option>
+              <option value="Tutorial">Tutorial</option>
+              <option value="Pengumuman">Pengumuman</option>
+            </select>
+            <select id="newsFilterStatus">
+              <option value="All">Semua Status</option>
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+            </select>
+          </div>
+          <button class="btn-primary" id="addNewsBtn">+ Tulis Berita</button>
+        </div>
+        <div class="panel">
+          <table class="data-table">
+            <thead>
+              <tr><th></th><th>Judul</th><th>Kategori</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="newsTableBody"></tbody>
+          </table>
+          <div class="empty-state" id="newsEmpty">Belum ada artikel. Klik "+ Tulis Berita".</div>
+        </div>
+      </section>
+
+      <!-- ===== INBOX ===== -->
+      <section class="view" data-view="inbox">
+        <div class="panel">
+          <div class="inbox-list" id="inboxList"></div>
+          <div class="empty-state" id="inboxEmpty">Tidak ada pesan.</div>
+        </div>
+      </section>
+
+      <!-- ===== ACTIVITY LOG ===== -->
+      <section class="view" data-view="activity">
+        <div class="panel">
+          <div class="timeline" id="activityTimeline"></div>
+        </div>
+      </section>
+
+      <!-- ===== ACCOUNTS ===== -->
+      <section class="view" data-view="accounts">
+        <div class="view-toolbar">
+          <div class="row-sub">Akun baru daftar sendiri lewat halaman login ("Buat Akun Baru") dengan role <strong>user</strong>. Admin bisa naik/turunkan role di sini — hanya role <strong>admin</strong> yang bisa masuk panel ini.</div>
+        </div>
+        <div class="panel">
+          <table class="data-table">
+            <thead>
+              <tr><th>Nama</th><th>Email</th><th>Role</th><th>Dibuat</th><th></th></tr>
+            </thead>
+            <tbody id="accountsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== SETTINGS ===== -->
+      <section class="view" data-view="settings">
+        <form class="panel form-panel" id="settingsForm">
+          <h3 class="form-section-title">Hero Section</h3>
+          <div class="form-row">
+            <label class="field"><span class="field-label">Badge Text</span><input id="setBadge" type="text"></label>
+          </div>
+          <label class="field"><span class="field-label">Headline (3 baris, pisahkan dengan |)</span><input id="setHeadline" type="text"></label>
+          <label class="field"><span class="field-label">Subjudul</span><textarea id="setSub" rows="3"></textarea></label>
+
+          <h3 class="form-section-title">Tentang</h3>
+          <label class="field"><span class="field-label">Bio Singkat</span><textarea id="setBio" rows="4"></textarea></label>
+
+          <h3 class="form-section-title">Sosial Media</h3>
+          <div class="form-row">
+            <label class="field"><span class="field-label">ArtStation</span><input id="setArtstation" type="text" placeholder="https://artstation.com/..."></label>
+            <label class="field"><span class="field-label">Instagram</span><input id="setInstagram" type="text" placeholder="https://instagram.com/..."></label>
+            <label class="field"><span class="field-label">LinkedIn</span><input id="setLinkedin" type="text" placeholder="https://linkedin.com/..."></label>
+          </div>
+
+          <h3 class="form-section-title">SEO</h3>
+          <label class="field"><span class="field-label">Meta Title</span><input id="setSeoTitle" type="text"></label>
+          <label class="field"><span class="field-label">Meta Description</span><textarea id="setSeoDesc" rows="2"></textarea></label>
+
+          <button type="submit" class="btn-primary">Simpan Pengaturan</button>
+          <span class="save-confirm" id="settingsSaved">✓ Tersimpan</span>
+        </form>
+      </section>
+
+      <!-- ===== PROFILE ===== -->
+      <section class="view" data-view="profile">
+        <div class="panel form-panel">
+          <h3 class="form-section-title">Profil</h3>
+          <div class="profile-edit-row">
+            <img id="profileAvatarPreview" alt="">
+            <div>
+              <input type="file" id="avatarInput" accept="image/*" class="file-input">
+              <label for="avatarInput" class="btn-secondary btn-sm">Ganti Foto</label>
+            </div>
+          </div>
+          <form id="profileForm">
+            <div class="form-row">
+              <label class="field"><span class="field-label">Nama</span><input id="profName" type="text"></label>
+              <label class="field"><span class="field-label">Email</span><input id="profEmail" type="email"></label>
+            </div>
+            <h3 class="form-section-title">Ubah Password (opsional)</h3>
+            <div class="form-row">
+              <label class="field"><span class="field-label">Password Baru</span><input id="profPass1" type="password" placeholder="••••••••"></label>
+              <label class="field"><span class="field-label">Konfirmasi Password</span><input id="profPass2" type="password" placeholder="••••••••"></label>
+            </div>
+            <div class="login-error" id="profileError"></div>
+            <button type="submit" class="btn-primary">Simpan Profil</button>
+            <span class="save-confirm" id="profileSaved">✓ Tersimpan</span>
+          </form>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ============ GENERIC MODAL ============ -->
+<div class="modal" id="modal">
+  <div class="modal-backdrop" id="modalBackdrop"></div>
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h3 id="modalTitle">Judul Modal</h3>
+      <button class="modal-close" id="modalClose">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="../data.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
