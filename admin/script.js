@@ -212,7 +212,15 @@ function goToPublicSite() {
   try {
     const account = await window.AetherData.getCurrentAccount();
     if (!account) { showLogin(); return; }
-    if (account.role !== 'admin') { goToPublicSite(); return; } // keep spinner up during redirect
+    if (account.role !== 'admin') {
+      // Stale non-admin session from a previous visit — sign out so the
+      // person can try a different account instead of getting silently
+      // bounced away with no way back to the login form.
+      await window.AetherData.signOut();
+      showLogin();
+      toast('Sesi sebelumnya bukan akun admin, silakan login ulang.');
+      return;
+    }
     await showApp();
   } catch (err) {
     console.error('checkAccess failed', err);
