@@ -184,10 +184,16 @@ const AdminPreview3D = (function () {
    ========================================================= */
 const loginScreen = document.getElementById('loginScreen');
 const appEl = document.getElementById('app');
+const bootLoading = document.getElementById('bootLoading');
+
+function hideBootLoading() {
+  bootLoading.classList.add('is-hidden');
+}
 
 async function showApp() {
   loginScreen.classList.add('is-hidden');
   appEl.classList.remove('is-hidden');
+  hideBootLoading();
   await loadDB();
   await renderAll();
   switchView('dashboard');
@@ -195,6 +201,7 @@ async function showApp() {
 function showLogin() {
   appEl.classList.add('is-hidden');
   loginScreen.classList.remove('is-hidden');
+  hideBootLoading();
 }
 function goToPublicSite() {
   window.location.href = '../index.html';
@@ -205,7 +212,7 @@ function goToPublicSite() {
   try {
     const account = await window.AetherData.getCurrentAccount();
     if (!account) { showLogin(); return; }
-    if (account.role !== 'admin') { goToPublicSite(); return; }
+    if (account.role !== 'admin') { goToPublicSite(); return; } // keep spinner up during redirect
     await showApp();
   } catch (err) {
     console.error('checkAccess failed', err);
