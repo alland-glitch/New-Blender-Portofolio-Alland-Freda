@@ -753,6 +753,29 @@ section { padding: 100px 5%; }
   color: var(--muted);
   opacity: .6;
 }
+.modal-inspector {
+  position: absolute; top: 16px; right: 16px;
+  display: flex;
+  background: rgba(13,15,20,0.7);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+.inspector-btn {
+  padding: 7px 14px;
+  border: none; border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.inspector-btn:hover { color: var(--text); }
+.inspector-btn.active { background: var(--orange); color: #000; }
 .port-modal-info {
   padding: 40px 36px;
   display: flex; flex-direction: column; justify-content: center;

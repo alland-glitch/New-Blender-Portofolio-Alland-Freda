@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
 
@@ -349,6 +350,22 @@
           </div>
           <label class="field"><span class="field-label">Headline (3 baris, pisahkan dengan |)</span><input id="setHeadline" type="text"></label>
           <label class="field"><span class="field-label">Subjudul</span><textarea id="setSub" rows="3"></textarea></label>
+
+          <label class="field"><span class="field-label">Model 3D Hero (.glb) — opsional, hanya penanda visual (tanpa toggle wireframe)</span>
+            <div class="shape-preview-box" style="height:180px;">
+              <canvas id="heroModelPreviewCanvas"></canvas>
+              <div class="shape-preview-hint">⟲ drag untuk lihat</div>
+            </div>
+            <div class="model-upload-box">
+              <div class="model-upload-status" id="heroModelStatus">Memuat...</div>
+              <input type="file" id="fHeroModelInput" accept=".glb" class="file-input">
+              <div class="model-upload-actions">
+                <label for="fHeroModelInput" class="btn-secondary btn-sm">Unggah .glb</label>
+                <button type="button" class="btn-ghost-sm" id="removeHeroModelBtn" style="display:none">Hapus Model</button>
+              </div>
+            </div>
+            <input type="hidden" id="setHeroModelUrl">
+          </label>
 
           <h3 class="form-section-title">Tentang</h3>
           <label class="field"><span class="field-label">Bio Singkat</span><textarea id="setBio" rows="4"></textarea></label>

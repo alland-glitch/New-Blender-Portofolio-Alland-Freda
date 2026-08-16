@@ -150,6 +150,57 @@ function addLights(scene) {
   scene.add(l1, l2);
 }
 
+/* Adds a neutral white key/fill light pair — used only for real uploaded
+   models so their own PBR materials/textures read correctly (the brand
+   orange/blue accent lights alone would tint everything). */
+function addModelKeyLights(scene) {
+  const key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(3, 4, 5);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+  fill.position.set(-4, 1, -3);
+  scene.add(key, fill);
+}
+
+/* Loads a .glb file, then centers it at the origin and normalizes its
+   scale so it sits consistently in-frame regardless of how it was
+   exported (Blender units/pivot vary a lot between files). */
+function loadGLTFModel(url) {
+  return new Promise((resolve, reject) => {
+    if (typeof THREE.GLTFLoader === 'undefined') { reject(new Error('GLTFLoader not available')); return; }
+    const loader = new THREE.GLTFLoader();
+    loader.load(url, gltf => {
+      const model = gltf.scene || gltf.scenes[0];
+      const box = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const center = new THREE.Vector3(); box.getCenter(center);
+      model.position.sub(center);
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const scale = 1.7 / maxDim;
+      model.scale.setScalar(scale);
+      resolve(model);
+    }, undefined, err => reject(err));
+  });
+}
+
+/* Builds a clean edge-only wireframe twin of a loaded model — mirrors the
+   whole hierarchy (so nested transforms stay correct) but swaps each mesh
+   for an EdgesGeometry line, giving crisp CAD-style lines instead of the
+   noisy look of raw per-triangle wireframe material. */
+function buildWireframeOverlay(model) {
+  const wireRoot = model.clone(true);
+  const meshes = [];
+  wireRoot.traverse(child => { if (child.isMesh) meshes.push(child); });
+  meshes.forEach(mesh => {
+    const edges = new THREE.EdgesGeometry(mesh.geometry, 15);
+    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xF5F7FA, transparent: true, opacity: 0.9 }));
+    line.position.copy(mesh.position);
+    line.rotation.copy(mesh.rotation);
+    line.scale.copy(mesh.scale);
+    if (mesh.parent) { mesh.parent.add(line); mesh.parent.remove(mesh); }
+  });
+  return wireRoot;
+}
+
 /* Builds a themed low-poly "blueprint" object per portfolio category */
 function buildShape(type, accent) {
   const c = colorFor(accent);
@@ -233,11 +284,20 @@ function disposeObject(obj) {
   });
 }
 
-/* Reusable interactive viewer: renderer + camera + controls + shape */
+/* Reusable interactive viewer: renderer + camera + controls + shape.
+   If opts.modelUrl is given, it loads that real .glb in the background
+   (starting from the procedural fallback shape so something is always
+   visible immediately), and — only when opts.enableInspector is true —
+   also builds a wireframe twin so callers can toggle Final Render /
+   Wireframe via setRenderMode(). */
 class Viewer3D {
-  constructor(canvas, { shape, accent, cameraZ = 3, zoom = false, autoRotateSpeed = 1.3 }) {
+  constructor(canvas, { shape, accent, cameraZ = 3, zoom = false, autoRotateSpeed = 1.3, modelUrl = null, enableInspector = false }) {
     this.canvas = canvas;
     this.active = true;
+    this.hasModel = false;
+    this.renderMode = 'final';
+    this.wireframeGroup = null;
+    this.enableInspector = enableInspector;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
     this.camera.position.set(0, 0, cameraZ);
@@ -256,12 +316,42 @@ class Viewer3D {
     this.controls.autoRotate = !prefersReducedMotion;
     this.controls.autoRotateSpeed = autoRotateSpeed;
     this.resize();
+    if (modelUrl) this.loadModel(modelUrl);
   }
   setShape(shape, accent) {
     this.scene.remove(this.group);
     disposeObject(this.group);
+    if (this.wireframeGroup) { this.scene.remove(this.wireframeGroup); disposeObject(this.wireframeGroup); this.wireframeGroup = null; }
+    this.hasModel = false;
+    this.renderMode = 'final';
     this.group = buildShape(shape, accent);
+    this.group.visible = true;
     this.scene.add(this.group);
+  }
+  async loadModel(url) {
+    try {
+      const loaded = await loadGLTFModel(url);
+      this.scene.remove(this.group);
+      disposeObject(this.group);
+      this.group = loaded;
+      this.scene.add(this.group);
+      addModelKeyLights(this.scene);
+      if (this.enableInspector) {
+        this.wireframeGroup = buildWireframeOverlay(loaded);
+        this.scene.add(this.wireframeGroup);
+        this.setRenderMode(this.renderMode);
+      }
+      this.hasModel = true;
+      if (this.onModelReady) this.onModelReady();
+    } catch (err) {
+      console.error('Failed to load 3D model, keeping placeholder shape', err);
+    }
+  }
+  setRenderMode(mode) {
+    this.renderMode = mode;
+    if (!this.hasModel) return;
+    this.group.visible = mode === 'final';
+    if (this.wireframeGroup) this.wireframeGroup.visible = mode === 'wireframe';
   }
   resize() {
     const w = this.canvas.clientWidth || 1;
@@ -304,12 +394,12 @@ function initHero() {
   const outer = edgeLines(outerGeo, BLUE, 0.4);
   scene.add(outer);
 
-  // Inner faceted core
+  // Inner faceted core (swappable with a real uploaded model)
   const innerGeo = new THREE.IcosahedronGeometry(0.85, 0);
-  const inner = new THREE.Group();
-  inner.add(fillMesh(innerGeo, ORANGE, 0.12));
-  inner.add(edgeLines(innerGeo, ORANGE, 0.95));
-  scene.add(inner);
+  let heroCore = new THREE.Group();
+  heroCore.add(fillMesh(innerGeo, ORANGE, 0.12));
+  heroCore.add(edgeLines(innerGeo, ORANGE, 0.95));
+  scene.add(heroCore);
 
   // Ambient particle field
   const PCOUNT = 140;
@@ -365,12 +455,24 @@ function initHero() {
       if (!this.active) return;
       controls.update();
       if (!prefersReducedMotion) {
-        inner.rotation.y += 0.0045;
-        inner.rotation.x += 0.002;
+        heroCore.rotation.y += 0.0045;
+        heroCore.rotation.x += 0.002;
         outer.rotation.y -= 0.0016;
         particles.rotation.y += 0.0006;
       }
       renderer.render(scene, camera);
+    },
+    async loadModel(url) {
+      try {
+        const loaded = await loadGLTFModel(url);
+        scene.remove(heroCore);
+        disposeObject(heroCore);
+        heroCore = loaded;
+        scene.add(heroCore);
+        addModelKeyLights(scene);
+      } catch (err) {
+        console.error('Failed to load hero 3D model, keeping default gem', err);
+      }
     }
   };
   viewers.push(heroViewer);
@@ -409,8 +511,10 @@ async function renderPublicPortfolio(db) {
     const description = p.description || '';
     const shape = p.shape || 'icosahedron';
     const accent = p.accent || 'orange';
+    const modelUrl = p.model_url || '';
     return `
     <div class="port-card reveal" data-category="${escapeHtml(category)}" data-shape="${escapeHtml(shape)}" data-accent="${escapeHtml(accent)}"
+         data-model-url="${escapeHtml(modelUrl)}"
          data-title="${escapeHtml(title)}" data-cat-label="${escapeHtml(category)}"
          data-tools="${escapeHtml(tools)}" data-desc="${escapeHtml(description)}">
       <div class="port-3d-wrap">
@@ -473,7 +577,8 @@ function initPortfolioCards() {
     if (!canvas) return;
     const shape = card.dataset.shape || 'icosahedron';
     const accent = card.dataset.accent || 'orange';
-    const v = new Viewer3D(canvas, { shape, accent, cameraZ: 3, zoom: false, autoRotateSpeed: 2.2 });
+    const modelUrl = card.dataset.modelUrl || null;
+    const v = new Viewer3D(canvas, { shape, accent, cameraZ: 3, zoom: false, autoRotateSpeed: 2.2, modelUrl, enableInspector: false });
     v.active = false;
     viewers.push(v);
     cardViewers.set(card, v);
@@ -511,6 +616,13 @@ const modalCanvas = document.getElementById('portModalCanvas');
 const modalClose = document.getElementById('portModalClose');
 const modalBackdrop = document.getElementById('portModalBackdrop');
 
+let modalOpenToken = 0;
+
+function setInspectorButton(mode) {
+  document.getElementById('btnFinalRender').classList.toggle('active', mode === 'final');
+  document.getElementById('btnWireframe').classList.toggle('active', mode === 'wireframe');
+}
+
 function openPortfolioModal(card) {
   document.getElementById('modalCat').textContent = card.dataset.catLabel || '';
   document.getElementById('modalTitle').textContent = card.dataset.title || '';
@@ -530,16 +642,27 @@ function openPortfolioModal(card) {
 
   const shape = card.dataset.shape || 'icosahedron';
   const accent = card.dataset.accent || 'orange';
+  const modelUrl = card.dataset.modelUrl || null;
+  const inspector = document.getElementById('modalInspector');
+  inspector.classList.add('is-hidden'); // only reappears once/if a real model finishes loading
+  const myToken = ++modalOpenToken;
 
   requestAnimationFrame(() => {
     if (!modalViewer) {
-      modalViewer = new Viewer3D(modalCanvas, { shape, accent, cameraZ: 3.4, zoom: true, autoRotateSpeed: 1.6 });
+      modalViewer = new Viewer3D(modalCanvas, { shape, accent, cameraZ: 3.4, zoom: true, autoRotateSpeed: 1.6, enableInspector: true });
       viewers.push(modalViewer);
     } else {
       modalViewer.setShape(shape, accent);
       modalViewer.controls.reset();
       modalViewer.camera.position.set(0, 0, 3.4);
     }
+    modalViewer.onModelReady = () => {
+      if (myToken !== modalOpenToken) return; // a newer project was opened meanwhile — ignore
+      inspector.classList.remove('is-hidden');
+      setInspectorButton('final');
+      modalViewer.setRenderMode('final');
+    };
+    if (modelUrl) modalViewer.loadModel(modelUrl);
     modalViewer.active = true;
     modalViewer.resize();
   });
@@ -552,6 +675,16 @@ function closePortfolioModal() {
 modalClose.addEventListener('click', closePortfolioModal);
 modalBackdrop.addEventListener('click', closePortfolioModal);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePortfolioModal(); });
+document.getElementById('btnFinalRender').addEventListener('click', () => {
+  if (!modalViewer) return;
+  modalViewer.setRenderMode('final');
+  setInspectorButton('final');
+});
+document.getElementById('btnWireframe').addEventListener('click', () => {
+  if (!modalViewer) return;
+  modalViewer.setRenderMode('wireframe');
+  setInspectorButton('wireframe');
+});
 
 /* ---------- PORTFOLIO FILTER (functional) ---------- */
 function initPortfolioFilter() {
@@ -602,5 +735,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderNewsTeaser(db);
   } catch (err) {
     console.error('Failed to render news teaser', err);
+  }
+
+  try {
+    const heroModelUrl = db.settings && db.settings.hero_model_url;
+    if (heroModelUrl && heroViewer && heroViewer.loadModel) {
+      heroViewer.loadModel(heroModelUrl);
+    }
+  } catch (err) {
+    console.error('Failed to load hero model', err);
   }
 });

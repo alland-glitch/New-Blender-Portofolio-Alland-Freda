@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
 
@@ -202,6 +203,10 @@
     <div class="port-modal-stage">
       <canvas id="portModalCanvas"></canvas>
       <div class="port-modal-hint">⟲ drag · scroll to zoom</div>
+      <div class="modal-inspector is-hidden" id="modalInspector">
+        <button type="button" class="inspector-btn active" id="btnFinalRender">Final Render</button>
+        <button type="button" class="inspector-btn" id="btnWireframe">Wireframe</button>
+      </div>
     </div>
     <div class="port-modal-info">
       <div class="port-modal-cat" id="modalCat">Category</div>

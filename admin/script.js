@@ -168,6 +168,32 @@ const AdminPreview3D = (function () {
     group = buildShape(shape, accent);
     scene.add(group);
   }
+  /* Swaps the preview to show a real uploaded .glb instead of the
+     procedural placeholder shape. */
+  function loadModel(url) {
+    return new Promise((resolve, reject) => {
+      if (!scene || typeof THREE.GLTFLoader === 'undefined') { reject(new Error('preview not ready')); return; }
+      const loader = new THREE.GLTFLoader();
+      loader.load(url, gltf => {
+        const model = gltf.scene || gltf.scenes[0];
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3(); box.getSize(size);
+        const center = new THREE.Vector3(); box.getCenter(center);
+        model.position.sub(center);
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        model.scale.setScalar(1.7 / maxDim);
+        if (scene && group) { scene.remove(group); disposeGroup(group); }
+        group = model;
+        if (scene) {
+          scene.add(group);
+          const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(3, 4, 5);
+          const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(-4, 1, -3);
+          scene.add(key, fill);
+        }
+        resolve();
+      }, undefined, err => reject(err));
+    });
+  }
   function stop() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
@@ -176,7 +202,7 @@ const AdminPreview3D = (function () {
     if (renderer) renderer.dispose();
     renderer = scene = camera = controls = group = null;
   }
-  return { start, update, stop };
+  return { start, update, stop, loadModel };
 })();
 
 /* =========================================================
@@ -347,6 +373,8 @@ function switchView(name) {
   if (name === 'inbox') renderInbox();
   if (name === 'activity') renderActivityLog();
   if (name === 'accounts') renderAccounts();
+  if (name === 'settings') startHeroModelPreview();
+  else AdminPreview3D.stop(); // free the GPU context when leaving settings
 }
 
 document.querySelectorAll('.nav-item[data-view]').forEach(btn => {
@@ -452,12 +480,23 @@ function renderPortfolio() {
 }
 
 function projectFormHtml(p) {
-  p = p || { title: '', category: DB.categories[0]?.name || '', tools: '', description: '', status: 'draft', accent: 'orange', shape: 'icosahedron' };
+  p = p || { title: '', category: DB.categories[0]?.name || '', tools: '', description: '', status: 'draft', accent: 'orange', shape: 'icosahedron', model_url: '' };
   return `
     <div class="shape-preview-box">
       <canvas id="shapePreviewCanvas"></canvas>
       <div class="shape-preview-hint">⟲ drag untuk lihat model 3D</div>
     </div>
+    <label class="field"><span class="field-label">Model 3D Asli (.glb) — opsional</span>
+      <div class="model-upload-box">
+        <div class="model-upload-status" id="modelUploadStatus">${p.model_url ? '✓ Model tersimpan' : 'Belum ada model diunggah'}</div>
+        <input type="file" id="fModelInput" accept=".glb" class="file-input">
+        <div class="model-upload-actions">
+          <label for="fModelInput" class="btn-secondary btn-sm">Unggah .glb</label>
+          <button type="button" class="btn-ghost-sm" id="removeModelBtn" style="${p.model_url ? '' : 'display:none'}">Hapus Model</button>
+        </div>
+      </div>
+      <input type="hidden" id="fModelUrl" value="${p.model_url || ''}">
+    </label>
     <label class="field"><span class="field-label">Judul Proyek</span><input id="fTitle" type="text" value="${escapeHtml(p.title)}" required></label>
     <div class="form-row">
       <label class="field"><span class="field-label">Kategori</span><select id="fCategory">${categoryOptions(p.category)}</select></label>
@@ -468,7 +507,7 @@ function projectFormHtml(p) {
         </select>
       </label>
     </div>
-    <label class="field"><span class="field-label">Bentuk Model 3D</span>
+    <label class="field"><span class="field-label">Bentuk Placeholder (dipakai kalau belum ada model asli di atas)</span>
       <select id="fShape">
         <option value="torusknot" ${p.shape === 'torusknot' ? 'selected' : ''}>Torus Knot (Produk)</option>
         <option value="icosahedron" ${p.shape === 'icosahedron' ? 'selected' : ''}>Icosahedron (Modeling)</option>
@@ -497,17 +536,48 @@ function openProjectModal(existing) {
   const form = document.getElementById('projectForm');
 
   AdminPreview3D.start(document.getElementById('shapePreviewCanvas'), existing ? existing.shape : 'icosahedron', existing ? existing.accent : 'orange');
+  if (existing && existing.model_url) {
+    AdminPreview3D.loadModel(existing.model_url).catch(() => toast('Model tersimpan gagal dimuat ulang di preview.'));
+  }
 
   form.querySelectorAll('.color-swatch-opt').forEach(opt => {
     opt.addEventListener('click', () => {
       form.querySelectorAll('.color-swatch-opt').forEach(o => o.classList.remove('is-selected'));
       opt.classList.add('is-selected');
       document.getElementById('fAccent').value = opt.dataset.accent;
-      AdminPreview3D.update(document.getElementById('fShape').value, opt.dataset.accent);
+      if (!document.getElementById('fModelUrl').value) AdminPreview3D.update(document.getElementById('fShape').value, opt.dataset.accent);
     });
   });
   document.getElementById('fShape').addEventListener('change', e => {
-    AdminPreview3D.update(e.target.value, document.getElementById('fAccent').value);
+    if (!document.getElementById('fModelUrl').value) AdminPreview3D.update(e.target.value, document.getElementById('fAccent').value);
+  });
+
+  const modelInput = document.getElementById('fModelInput');
+  const modelStatus = document.getElementById('modelUploadStatus');
+  const removeModelBtn = document.getElementById('removeModelBtn');
+  modelInput.addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.glb')) { toast('Hanya file .glb yang didukung.'); return; }
+    if (file.size > 15 * 1024 * 1024) { toast('File cukup besar (>15MB) — mungkin lambat dimuat pengunjung. Tetap lanjut mengunggah.'); }
+    modelStatus.textContent = 'Mengunggah...';
+    try {
+      const url = await window.AetherData.uploadModel(file);
+      document.getElementById('fModelUrl').value = url;
+      modelStatus.textContent = '✓ Model tersimpan: ' + file.name;
+      removeModelBtn.style.display = '';
+      await AdminPreview3D.loadModel(url);
+    } catch (err) {
+      modelStatus.textContent = 'Gagal mengunggah model.';
+      toast('Gagal mengunggah model 3D.');
+    }
+  });
+  removeModelBtn.addEventListener('click', () => {
+    document.getElementById('fModelUrl').value = '';
+    modelStatus.textContent = 'Belum ada model diunggah';
+    removeModelBtn.style.display = 'none';
+    modelInput.value = '';
+    AdminPreview3D.update(document.getElementById('fShape').value, document.getElementById('fAccent').value);
   });
 
   document.getElementById('cancelBtn').addEventListener('click', closeModal);
@@ -523,6 +593,7 @@ function openProjectModal(existing) {
       tools: document.getElementById('fTools').value.trim(),
       description: document.getElementById('fDesc').value.trim(),
       accent: document.getElementById('fAccent').value,
+      model_url: document.getElementById('fModelUrl').value || null,
     };
     try {
       if (existing) {
@@ -1155,7 +1226,44 @@ function fillSettingsForm() {
   document.getElementById('setLinkedin').value = s.linkedin || '';
   document.getElementById('setSeoTitle').value = s.seo_title || '';
   document.getElementById('setSeoDesc').value = s.seo_desc || '';
+  document.getElementById('setHeroModelUrl').value = s.hero_model_url || '';
+  document.getElementById('heroModelStatus').textContent = s.hero_model_url ? '✓ Model tersimpan' : 'Belum ada model diunggah — Hero pakai bentuk gem default';
+  document.getElementById('removeHeroModelBtn').style.display = s.hero_model_url ? '' : 'none';
 }
+
+function startHeroModelPreview() {
+  const canvas = document.getElementById('heroModelPreviewCanvas');
+  const url = document.getElementById('setHeroModelUrl').value;
+  AdminPreview3D.start(canvas, 'icosahedron', 'orange');
+  if (url) AdminPreview3D.loadModel(url).catch(() => toast('Model Hero gagal dimuat ulang di preview.'));
+}
+
+document.getElementById('fHeroModelInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.glb')) { toast('Hanya file .glb yang didukung.'); return; }
+  if (file.size > 15 * 1024 * 1024) { toast('File cukup besar (>15MB) — mungkin lambat dimuat pengunjung. Tetap lanjut mengunggah.'); }
+  const statusEl = document.getElementById('heroModelStatus');
+  statusEl.textContent = 'Mengunggah...';
+  try {
+    const url = await window.AetherData.uploadModel(file);
+    document.getElementById('setHeroModelUrl').value = url;
+    statusEl.textContent = '✓ Model tersimpan: ' + file.name + ' (klik "Simpan Pengaturan" untuk menerapkan)';
+    document.getElementById('removeHeroModelBtn').style.display = '';
+    await AdminPreview3D.loadModel(url);
+  } catch (err) {
+    statusEl.textContent = 'Gagal mengunggah model.';
+    toast('Gagal mengunggah model Hero.');
+  }
+});
+document.getElementById('removeHeroModelBtn').addEventListener('click', () => {
+  document.getElementById('setHeroModelUrl').value = '';
+  document.getElementById('heroModelStatus').textContent = 'Model dihapus (klik "Simpan Pengaturan" untuk menerapkan)';
+  document.getElementById('removeHeroModelBtn').style.display = 'none';
+  document.getElementById('fHeroModelInput').value = '';
+  AdminPreview3D.update('icosahedron', 'orange');
+});
+
 document.getElementById('settingsForm').addEventListener('submit', async e => {
   e.preventDefault();
   const data = {
@@ -1168,6 +1276,7 @@ document.getElementById('settingsForm').addEventListener('submit', async e => {
     linkedin: document.getElementById('setLinkedin').value,
     seo_title: document.getElementById('setSeoTitle').value,
     seo_desc: document.getElementById('setSeoDesc').value,
+    hero_model_url: document.getElementById('setHeroModelUrl').value || null,
   };
   try {
     await window.AetherData.updateSettings(data);

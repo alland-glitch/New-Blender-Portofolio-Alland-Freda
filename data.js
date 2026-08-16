@@ -164,6 +164,17 @@
     return data.publicUrl;
   }
 
+  /* Uploads a raw .glb file to the "3d-models" bucket and returns its
+     public URL for storing in projects.model_url / site_settings.hero_model_url. */
+  async function uploadModel(file) {
+    const safeName = (file.name || 'model.glb').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
+    const { error } = await sb.storage.from('3d-models').upload(path, file, { contentType: 'model/gltf-binary' });
+    throwIfError('uploadModel', error);
+    const { data } = sb.storage.from('3d-models').getPublicUrl(path);
+    return data.publicUrl;
+  }
+
   /* ---------- MESSAGES (contact form + inbox) ---------- */
   async function sendMessage({ name, email, subject, body }) {
     const { error } = await sb.from('messages').insert({ name, email, subject, body });
@@ -257,7 +268,7 @@
     addService, updateService, deleteService,
     addSkill, updateSkillPct, deleteSkill,
     addTestimonial, updateTestimonial, deleteTestimonial,
-    addNews, updateNews, deleteNews, uploadNewsImage,
+    addNews, updateNews, deleteNews, uploadNewsImage, uploadModel,
     sendMessage, markMessageRead, deleteMessage,
     updateSettings,
     signUp, signIn, signOut, getCurrentAccount,
