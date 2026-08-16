@@ -568,8 +568,10 @@ function openProjectModal(existing) {
       removeModelBtn.style.display = '';
       await AdminPreview3D.loadModel(url);
     } catch (err) {
-      modelStatus.textContent = 'Gagal mengunggah model.';
-      toast('Gagal mengunggah model 3D.');
+      console.error('uploadModel failed', err);
+      const detail = (err && err.message) || 'kesalahan tidak diketahui';
+      modelStatus.textContent = 'Gagal mengunggah model: ' + detail;
+      toast('Gagal mengunggah model 3D: ' + detail);
     }
   });
   removeModelBtn.addEventListener('click', () => {
@@ -1252,8 +1254,10 @@ document.getElementById('fHeroModelInput').addEventListener('change', async e =>
     document.getElementById('removeHeroModelBtn').style.display = '';
     await AdminPreview3D.loadModel(url);
   } catch (err) {
-    statusEl.textContent = 'Gagal mengunggah model.';
-    toast('Gagal mengunggah model Hero.');
+    console.error('uploadModel (hero) failed', err);
+    const detail = (err && err.message) || 'kesalahan tidak diketahui';
+    statusEl.textContent = 'Gagal mengunggah model: ' + detail;
+    toast('Gagal mengunggah model Hero: ' + detail);
   }
 });
 document.getElementById('removeHeroModelBtn').addEventListener('click', () => {

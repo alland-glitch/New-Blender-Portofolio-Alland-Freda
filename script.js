@@ -191,8 +191,11 @@ function buildWireframeOverlay(model) {
   const meshes = [];
   wireRoot.traverse(child => { if (child.isMesh) meshes.push(child); });
   meshes.forEach(mesh => {
-    const edges = new THREE.EdgesGeometry(mesh.geometry, 15);
-    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xF5F7FA, transparent: true, opacity: 0.9 }));
+    // WireframeGeometry draws every edge of every triangle (dense, CAD-style),
+    // unlike EdgesGeometry which only keeps sharp-angle silhouette edges and
+    // ends up nearly empty on smoothly curved surfaces like bottles/cars.
+    const wire = new THREE.WireframeGeometry(mesh.geometry);
+    const line = new THREE.LineSegments(wire, new THREE.LineBasicMaterial({ color: 0xF5F7FA, transparent: true, opacity: 0.55 }));
     line.position.copy(mesh.position);
     line.rotation.copy(mesh.rotation);
     line.scale.copy(mesh.scale);
