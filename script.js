@@ -182,26 +182,23 @@ function loadGLTFModel(url) {
   });
 }
 
-/* Builds a clean edge-only wireframe twin of a loaded model — mirrors the
-   whole hierarchy (so nested transforms stay correct) but swaps each mesh
-   for an EdgesGeometry line, giving crisp CAD-style lines instead of the
-   noisy look of raw per-triangle wireframe material. */
-function buildWireframeOverlay(model) {
-  const wireRoot = model.clone(true);
-  const meshes = [];
-  wireRoot.traverse(child => { if (child.isMesh) meshes.push(child); });
-  meshes.forEach(mesh => {
-    // WireframeGeometry draws every edge of every triangle (dense, CAD-style),
-    // unlike EdgesGeometry which only keeps sharp-angle silhouette edges and
-    // ends up nearly empty on smoothly curved surfaces like bottles/cars.
-    const wire = new THREE.WireframeGeometry(mesh.geometry);
-    const line = new THREE.LineSegments(wire, new THREE.LineBasicMaterial({ color: 0xF5F7FA, transparent: true, opacity: 0.55 }));
-    line.position.copy(mesh.position);
-    line.rotation.copy(mesh.rotation);
-    line.scale.copy(mesh.scale);
-    if (mesh.parent) { mesh.parent.add(line); mesh.parent.remove(mesh); }
+/* Builds wireframe materials for every mesh in a loaded model, keyed by
+   mesh so we can swap materials in place (mesh.material = wire/original).
+   This is far more robust than reconstructing edge geometry by hand — it
+   works regardless of how a mesh's geometry/attributes are structured,
+   since it just flips Three.js's native per-triangle wireframe rendering
+   on the mesh's own material instead of rebuilding line geometry. */
+function buildWireframeMaterials(model) {
+  const map = new Map();
+  model.traverse(child => {
+    if (child.isMesh) {
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: 0xF5F7FA, wireframe: true, transparent: true, opacity: 0.55,
+      });
+      map.set(child, { original: child.material, wire: wireMat });
+    }
   });
-  return wireRoot;
+  return map;
 }
 
 /* Builds a themed low-poly "blueprint" object per portfolio category */
@@ -291,15 +288,15 @@ function disposeObject(obj) {
    If opts.modelUrl is given, it loads that real .glb in the background
    (starting from the procedural fallback shape so something is always
    visible immediately), and — only when opts.enableInspector is true —
-   also builds a wireframe twin so callers can toggle Final Render /
-   Wireframe via setRenderMode(). */
+   also prepares per-mesh wireframe materials so callers can toggle
+   Final Render / Wireframe via setRenderMode(). */
 class Viewer3D {
   constructor(canvas, { shape, accent, cameraZ = 3, zoom = false, autoRotateSpeed = 1.3, modelUrl = null, enableInspector = false }) {
     this.canvas = canvas;
     this.active = true;
     this.hasModel = false;
     this.renderMode = 'final';
-    this.wireframeGroup = null;
+    this.wireframeMap = null;
     this.enableInspector = enableInspector;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
@@ -324,7 +321,7 @@ class Viewer3D {
   setShape(shape, accent) {
     this.scene.remove(this.group);
     disposeObject(this.group);
-    if (this.wireframeGroup) { this.scene.remove(this.wireframeGroup); disposeObject(this.wireframeGroup); this.wireframeGroup = null; }
+    this.wireframeMap = null;
     this.hasModel = false;
     this.renderMode = 'final';
     this.group = buildShape(shape, accent);
@@ -337,14 +334,12 @@ class Viewer3D {
       this.scene.remove(this.group);
       disposeObject(this.group);
       this.group = loaded;
+      this.group.visible = true;
       this.scene.add(this.group);
       addModelKeyLights(this.scene);
-      if (this.enableInspector) {
-        this.wireframeGroup = buildWireframeOverlay(loaded);
-        this.scene.add(this.wireframeGroup);
-        this.setRenderMode(this.renderMode);
-      }
+      this.wireframeMap = this.enableInspector ? buildWireframeMaterials(this.group) : null;
       this.hasModel = true;
+      this.setRenderMode(this.renderMode);
       if (this.onModelReady) this.onModelReady();
     } catch (err) {
       console.error('Failed to load 3D model, keeping placeholder shape', err);
@@ -352,9 +347,10 @@ class Viewer3D {
   }
   setRenderMode(mode) {
     this.renderMode = mode;
-    if (!this.hasModel) return;
-    this.group.visible = mode === 'final';
-    if (this.wireframeGroup) this.wireframeGroup.visible = mode === 'wireframe';
+    if (!this.hasModel || !this.wireframeMap) return;
+    this.wireframeMap.forEach((mats, mesh) => {
+      mesh.material = mode === 'wireframe' ? mats.wire : mats.original;
+    });
   }
   resize() {
     const w = this.canvas.clientWidth || 1;
