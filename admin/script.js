@@ -931,7 +931,8 @@ function renderNews() {
 }
 
 function newsFormHtml(n) {
-  n = n || { title: '', category: 'Update Proyek', excerpt: '', content: '', accent: 'orange', status: 'draft', image_url: '' };
+  n = n || { title: '', category: 'Update Proyek', excerpt: '', content: '', accent: 'orange', status: 'draft', image_url: '', created_at: null };
+  const dateValue = n.created_at ? new Date(n.created_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
   return `
     <label class="field"><span class="field-label">Gambar Artikel (opsional, sebagai bukti/dokumentasi)</span>
       <div class="news-image-upload">
@@ -960,6 +961,7 @@ function newsFormHtml(n) {
         </select>
       </label>
     </div>
+    <label class="field"><span class="field-label">Tanggal Publikasi</span><input id="fNDate" type="date" value="${dateValue}" required></label>
     <label class="field"><span class="field-label">Ringkasan Singkat</span><textarea id="fNExcerpt" rows="2">${escapeHtml(n.excerpt)}</textarea></label>
     <label class="field"><span class="field-label">Isi Artikel (pisahkan paragraf dengan baris baru)</span><textarea id="fNContent" rows="7">${escapeHtml(n.content)}</textarea></label>
     <label class="field"><span class="field-label">Warna Aksen (dipakai kalau tanpa gambar)</span>
@@ -1031,6 +1033,7 @@ function openNewsModal(existing) {
       if (pendingImageBlob) {
         image_url = await window.AetherData.uploadNewsImage(pendingImageBlob);
       }
+      const dateInput = document.getElementById('fNDate').value;
       const data = {
         title: document.getElementById('fNTitle').value.trim() || 'Untitled Article',
         category: document.getElementById('fNCategory').value,
@@ -1039,6 +1042,9 @@ function openNewsModal(existing) {
         content: document.getElementById('fNContent').value,
         accent: document.getElementById('fNAccent').value,
         image_url,
+        // Fixed at noon so the chosen calendar date can't shift a day
+        // backward/forward due to timezone conversion at midnight.
+        created_at: new Date(dateInput + 'T12:00:00').toISOString(),
       };
       if (existing) {
         await window.AetherData.updateNews(existing.id, data);
